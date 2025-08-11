@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Prophecy Game</title>
+    <style>
+        /* --- Basic Setup & Theming --- */
+        :root {
+            --bg-color: #1a1a2e;
+            --primary-color: #16213e;
+            --secondary-color: #0f3460;
+            --accent-color: #e94560;
+            --text-color: #dcdcdc;
+            --font-family: 'Segoe UI', 'Roboto', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-family);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            text-align: center;
+            background-image: radial-gradient(circle, var(--secondary-color) 0%, var(--bg-color) 70%);
+        }
+
+        /* --- Main Container & Screen Management --- */
+        .container {
+            width: 100%;
+            max-width: 800px;
+            background-color: var(--primary-color);
+            padding: 2rem 3rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        }
+
+        .screen {
+            display: none; /* Hide all screens by default */
+        }
+
+        .screen.active {
+            display: block; /* Show only the active screen */
+        }
+
+        /* --- UI Components --- */
+        h1, h2, h3 {
+            color: var(--accent-color);
+            margin-top: 0;
+            letter-spacing: 1px;
+        }
+
+        h1 { font-size: 2.5rem; }
+        h2 { font-size: 1.8rem; }
+        h3 { font-size: 1.4rem; }
+
+        p {
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+        }
+
+        button {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            font-size: 1rem;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s ease, background-color 0.2s ease;
+            margin: 5px;
+        }
+
+        button:hover {
+            transform: scale(1.05);
+            background-color: #ff5a75;
+        }
+
+        button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        input[type="text"], select {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            background-color: var(--secondary-color);
+            border: 2px solid var(--bg-color);
+            border-radius: 8px;
+            color: var(--text-color);
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        
+        textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 12px;
+            margin-bottom: 15px;
+            background-color: var(--secondary-color);
+            border: 2px solid var(--bg-color);
+            border-radius: 8px;
+            color: var(--text-color);
+            font-size: 1rem;
+            box-sizing: border-box;
+            resize: vertical;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            text-align: left;
+            font-weight: bold;
+        }
+
+        /* --- Specific Layouts --- */
+        .player-inputs {
+            margin-bottom: 2rem;
+            max-height: 200px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        .player-input-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .player-input-group input {
+            flex-grow: 1;
+            margin: 0 10px 0 0;
+        }
+        
+        #game-screen h2 {
+            font-size: 2.2rem;
+            margin-bottom: 1rem;
+        }
+
+        #game-screen p {
+            font-size: 1.2rem;
+            background-color: var(--secondary-color);
+            padding: 1rem;
+            border-radius: 8px;
+        }
+
+        /* --- Reveal Screen --- */
+        .prophecy-scroll {
+            background-color: #fdf5e6;
+            color: #5d4037;
+            border: 5px solid #d2b48c;
+            border-radius: 10px;
+            padding: 2rem;
+            margin: 2rem 0;
+            text-align: left;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            animation: fadeIn 1s ease-in-out;
+            opacity: 0;
+            animation-fill-mode: forwards;
+        }
+
+        .prophecy-scroll h3 {
+            color: #8b4513;
+            text-align: center;
+            font-family: 'Garamond', serif;
+            font-size: 2rem;
+            border-bottom: 2px dashed #d2b48c;
+            padding-bottom: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .prophecy-scroll p {
+            font-family: 'Garamond', serif;
+            font-size: 1.3rem;
+            line-height: 1.8;
+            color: #3e2723;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div id="landing-screen" class="screen active">
+            <h1>🔮 The Prophecy Game</h1>
+            <p>Gather your friends, answer strange questions, and reveal your hilariously twisted destiny. No two prophecies are ever the same!</p>
+            <button onclick="showScreen('setup-screen')">Start New Game</button>
+        </div>
+
+        <div id="setup-screen" class="screen">
+            <h2>Game Setup</h2>
+            <div id="player-inputs">
+                <label>Player Names (3-8 players)</label>
+                <div class="player-input-group">
+                    <input type="text" placeholder="Player 1 Name" class="player-name">
+                </div>
+                <div class="player-input-group">
+                    <input type="text" placeholder="Player 2 Name" class="player-name">
+                </div>
+                <div class="player-input-group">
+                    <input type="text" placeholder="Player 3 Name" class="player-name">
+                </div>
+            </div>
+            <button onclick="addPlayerInput()">+ Add Player</button>
+
+            <br><br>
+
+            <label for="theme-select">Select a Theme</label>
+            <select id="theme-select">
+                <option value="random">🌟 Random Mix</option>
+                <option value="classic">📜 Classic Prophecies</option>
+                <option value="cringe"> cringe Cringe Week</option>
+                <option value="fantasy">🏰 Medieval Fantasy</option>
+            </select>
+
+            <label for="gamemode-select">Select a Game Mode</label>
+            <select id="gamemode-select">
+                <option value="classic">Classic (Each player builds their own prophecy)</option>
+                <option value="pass-and-build">Pass & Build (Each player adds one line to every prophecy)</option>
+            </select>
+
+            <button onclick="startGame()">Let the Stars Align ✨</button>
+        </div>
+
+        <div id="game-screen" class="screen">
+            <h2 id="game-player-name">Player's Turn</h2>
+            <p id="game-prompt">Your prompt will appear here.</p>
+            <textarea id="game-answer" placeholder="Write your prophecy line here..."></textarea>
+            <button id="submit-button" onclick="submitAnswer()">Submit & Next Player</button>
+        </div>
+
+        <div id="reveal-screen" class="screen">
+            <h2>The Prophecies Are Revealed!</h2>
+            <div id="prophecies-container">
+                </div>
+            <button onclick="restartGame()">Play Again</button>
+        </div>
+
+    </div>
+
+    <script>
+        // ===================================
+        // ===== GAME STATE & DATA =========
+        // ===================================
+
+        const promptData = {
+            classic: [
+                "Your greatest adventure will begin when you find a...",
+                "You will become famous for inventing a...",
+                "Beware the person who offers you a...",
+                "Your love life will dramatically change after a...",
+                "You will achieve world peace by using a...",
+                "Your secret superpower is the ability to control...",
+                "A talking animal will give you terrible advice about...",
+                "You'll find the answer to your life's problems at the bottom of a...",
+            ],
+            cringe: [
+                "You will go viral on TikTok for accidentally...",
+                "Your most embarrassing moment next week will involve a...",
+                "You will try to impress your crush by showing them your...",
+                "The group chat will expose you for secretly liking...",
+                "Your search history will be read aloud at a family dinner, revealing your interest in...",
+                "You'll get caught lip-syncing in the mirror to a...",
+                "Your first text to a wrong number will be...",
+                "You will confidently mispronounce the word...",
+            ],
+            fantasy: [
+                "The ancient dragon guards a legendary treasure known as...",
+                "You will unite the warring kingdoms with a magical...",
+                "The court wizard foresees you will defeat the lich king using only a...",
+                "Your quest is to retrieve the long-lost...",
+                "An enchanted forest will grant you the power of...",
+                "You'll befriend a grumpy dwarf who is surprisingly good at...",
+                "The key to the forbidden temple is hidden inside a...",
+                "Your noble steed is not a horse, but a surprisingly fast...",
+            ]
+        };
+
+        let gameState = {
+            players: [],
+            theme: 'random',
+            gameMode: 'classic',
+            currentPlayerIndex: 0,
+            currentRound: 0,
+            prompts: [],
+            answers: [], // Will be structured based on game mode
+        };
+
+        // ===================================
+        // ===== UTILITY FUNCTIONS =========
+        // ===================================
+
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+        
+        // ===================================
+        // ===== SETUP FUNCTIONS ===========
+        // ===================================
+
+        function addPlayerInput() {
+            const container = document.getElementById('player-inputs');
+            const playerCount = container.children.length;
+            if (playerCount >= 8) return; // Max 8 players
+
+            const newPlayerInput = document.createElement('div');
+            newPlayerInput.className = 'player-input-group';
+            newPlayerInput.innerHTML = `<input type="text" placeholder="Player ${playerCount + 1} Name" class="player-name">`;
+            container.appendChild(newPlayerInput);
+        }
+
+        function startGame() {
+            // 1. Collect Player Names
+            const playerInputs = document.querySelectorAll('.player-name');
+            const players = Array.from(playerInputs)
+                .map(input => input.value.trim())
+                .filter(name => name !== '');
+
+            if (players.length < 3) {
+                alert('You need at least 3 players to start the prophecy!');
+                return;
+            }
+
+            gameState.players = players;
+            
+            // 2. Set Theme and Game Mode
+            gameState.theme = document.getElementById('theme-select').value;
+            gameState.gameMode = document.getElementById('gamemode-select').value;
+            
+            // 3. Prepare Prompts
+            let availablePrompts = [];
+            if (gameState.theme === 'random') {
+                availablePrompts = [...promptData.classic, ...promptData.cringe, ...promptData.fantasy];
+            } else {
+                availablePrompts = [...promptData[gameState.theme]];
+            }
+            gameState.prompts = shuffleArray(availablePrompts).slice(0, gameState.players.length);
+
+            // 4. Reset state and start game
+            gameState.currentPlayerIndex = 0;
+            gameState.currentRound = 0;
+            
+            // Initialize answers structure based on mode
+            if (gameState.gameMode === 'pass-and-build') {
+                // Create a 2D array: players x rounds
+                gameState.answers = Array(gameState.players.length).fill(null).map(() => Array(gameState.players.length).fill(''));
+            } else { // Classic mode
+                gameState.answers = Array(gameState.players.length).fill('');
+            }
+
+            // 5. Move to the first player's turn
+            showScreen('game-screen');
+            loadPlayerTurn();
+        }
+
+        // ===================================
+        // ===== GAME LOGIC FUNCTIONS ======
+        // ===================================
+
+        function loadPlayerTurn() {
+            const answerInput = document.getElementById('game-answer');
+            answerInput.value = ''; // Clear previous answer
+            
+            let currentPlayerName = '';
+            let currentPrompt = '';
+
+            if (gameState.gameMode === 'classic') {
+                currentPlayerName = gameState.players[gameState.currentPlayerIndex];
+                currentPrompt = gameState.prompts[gameState.currentPlayerIndex];
+            } else if (gameState.gameMode === 'pass-and-build') {
+                // In Pass & Build, player index changes each turn, round changes after all players have gone once
+                const playerForThisTurnIndex = (gameState.currentPlayerIndex + gameState.currentRound) % gameState.players.length;
+                currentPlayerName = gameState.players[playerForThisTurnIndex];
+                currentPrompt = `For ${gameState.players[gameState.currentPlayerIndex]}'s prophecy, write a line for the prompt: "${gameState.prompts[gameState.currentRound]}"`;
+            }
+
+            document.getElementById('game-player-name').innerText = `${currentPlayerName}'s Turn`;
+            document.getElementById('game-prompt').innerText = currentPrompt;
+            
+            // Update button text for the last turn
+            const isLastTurn = (gameState.currentPlayerIndex === gameState.players.length - 1) &&
+                               (gameState.gameMode === 'classic' || gameState.currentRound === gameState.players.length - 1);
+
+            document.getElementById('submit-button').innerText = isLastTurn ? 'Finish & Reveal Prophecies!' : 'Submit & Next Player';
+        }
+
+        function submitAnswer() {
+            const answer = document.getElementById('game-answer').value.trim();
+            if (answer === '') {
+                alert('The stars demand an answer! Please write something.');
+                return;
+            }
+
+            // Save answer based on game mode
+            if (gameState.gameMode === 'classic') {
+                gameState.answers[gameState.currentPlayerIndex] = answer;
+                gameState.currentPlayerIndex++;
+            } else if (gameState.gameMode === 'pass-and-build') {
+                // The answer goes into the prophecy of the CURRENT ROUND, written by the CURRENT PLAYER
+                gameState.answers[gameState.currentRound][gameState.currentPlayerIndex] = answer;
+                gameState.currentPlayerIndex++;
+                
+                // If all players have submitted for this round, move to the next round
+                if (gameState.currentPlayerIndex >= gameState.players.length) {
+                    gameState.currentPlayerIndex = 0;
+                    gameState.currentRound++;
+                }
+            }
+
+            // Check if game is over
+            const isGameOver = (gameState.gameMode === 'classic' && gameState.currentPlayerIndex >= gameState.players.length) ||
+                               (gameState.gameMode === 'pass-and-build' && gameState.currentRound >= gameState.players.length);
+
+            if (isGameOver) {
+                revealProphecies();
+            } else {
+                // Simple "pass the device" screen
+                alert('Answer submitted! Pass the device to the next player.');
+                loadPlayerTurn();
+            }
+        }
+        
+        // ===================================
+        // ===== REVEAL & RESTART ==========
+        // ===================================
+
+        function revealProphecies() {
+            const container = document.getElementById('prophecies-container');
+            container.innerHTML = ''; // Clear old prophecies
+
+            for (let i = 0; i < gameState.players.length; i++) {
+                const scroll = document.createElement('div');
+                scroll.className = 'prophecy-scroll';
+                // Add a staggered animation delay
+                scroll.style.animationDelay = `${i * 0.3}s`;
+
+                const title = `<h3>${gameState.players[i]}'s Prophecy</h3>`;
+                let prophecyText = '';
+
+                if (gameState.gameMode === 'classic') {
+                    prophecyText = `<p>${gameState.prompts[i]} <strong>${gameState.answers[i]}</strong></p>`;
+                } else if (gameState.gameMode === 'pass-and-build') {
+                    // Assemble the prophecy line by line
+                    let fullProphecy = '';
+                    for (let j = 0; j < gameState.players.length; j++) {
+                        // The i-th player's prophecy is built from the j-th prompt and the j-th answer they received
+                        fullProphecy += `<p>${gameState.prompts[j]} <strong>${gameState.answers[i][j]}</strong></p>`;
+                    }
+                    prophecyText = fullProphecy;
+                }
+                
+                scroll.innerHTML = title + prophecyText;
+                container.appendChild(scroll);
+            }
+
+            showScreen('reveal-screen');
+        }
+
+        function restartGame() {
+            // Reset game state object to its initial values
+            gameState = {
+                players: [],
+                theme: 'random',
+                gameMode: 'classic',
+                currentPlayerIndex: 0,
+                currentRound: 0,
+                prompts: [],
+                answers: [],
+            };
+            // Go back to the landing screen
+            showScreen('landing-screen');
+        }
+
+    </script>
+</body>
+</html>
