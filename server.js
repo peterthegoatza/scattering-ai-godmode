@@ -9,19 +9,13 @@ const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
 
-// This line tells Express that static files (like your HTML, CSS, client-side JS) are in the 'public' folder.
+// Serve static files from the 'public' directory
 app.use(express.static(path.join(__dirname, 'public')));
 
-// This is the CRUCIAL line. It tells Express what to do when someone visits the main URL.
-// It sends them the main HTML file from inside the 'public' folder.
+// Serve the main HTML file for the root route
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'prophecy-game.html'));
 });
-
-// The rest of your server code...
-// ...
-// ... (promptData, lobbies, io.on('connection',...), etc.)
-// ...
 
 const promptData = {
     classic: [
@@ -171,4 +165,53 @@ io.on('connection', (socket) => {
             const lobby = lobbies[lobbyId];
             const playerIndex = lobby.players.findIndex(p => p.id === socket.id);
             if (playerIndex > -1) {
-             
+                const wasHost = lobby.players[playerIndex].isHost;
+                lobby.players.splice(playerIndex, 1);
+                if (lobby.players.length === 0) {
+                    delete lobbies[lobbyId];
+                } else {
+                    if (wasHost && lobby.players.length > 0) {
+                        lobby.players[0].isHost = true;
+                    }
+                    io.to(lobbyId).emit('playerJoined', { players: lobby.players });
+                }
+                break;
+            }
+        }
+    });
+}); // <--- THIS CLOSING BRACKET FOR io.on('connection',...) IS IMPORTANT
+
+function handleNextTurn(lobbyId) {
+    const lobby = lobbies[lobbyId];
+    const gameState = lobby.gameState;
+    
+    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+    let prompt;
+
+    if (gameState.gameMode === 'classic') {
+        prompt = gameState.prompts[gameState.currentPlayerIndex];
+    } else {
+        const playerForThisTurnIndex = (gameState.currentPlayerIndex + gameState.currentRound) % gameState.players.length;
+        const playerForThisTurn = gameState.players[playerForThisTurnIndex];
+        prompt = `For ${playerForThisTurn.name}'s prophecy, write a line for the prompt: "${gameState.prompts[gameState.currentRound]}"`;
+    }
+
+    // Send a generic "next turn" message to everyone in the lobby
+    io.to(lobbyId).emit('nextTurn', {
+        currentPlayerName: currentPlayer.name,
+        prompt: prompt,
+        isMyTurn: false 
+    });
+    
+    // Send a specific "it's your turn" message only to the current player
+    io.to(currentPlayer.id).emit('nextTurn', {
+        currentPlayerName: currentPlayer.name,
+        prompt: prompt,
+        isMyTurn: true
+    });
+}
+
+// THIS FINAL BLOCK STARTS THE SERVER. IT IS CRUCIAL.
+server.listen(PORT, () => {
+  console.log(`Server is running on http://localhost:${PORT} 🖥️`);
+});
