@@ -11,10 +11,6 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'prophecy-game.html'));
-});
-
 const promptData = {
     classic: [
         "Your greatest adventure will begin when you find a...",
