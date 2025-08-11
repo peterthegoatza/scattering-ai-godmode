@@ -188,6 +188,29 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
+        /* --- Lobby and Game Messages --- */
+        .lobby-players-list {
+            list-style: none;
+            padding: 0;
+            margin-bottom: 1rem;
+        }
+
+        .lobby-players-list li {
+            background-color: var(--secondary-color);
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 5px;
+        }
+
+        .game-message {
+            background-color: var(--accent-color);
+            color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            display: none;
+        }
+
     </style>
 </head>
 <body>
@@ -196,61 +219,54 @@
         <div id="landing-screen" class="screen active">
             <h1>🔮 The Prophecy Game</h1>
             <p>Gather your friends, answer strange questions, and reveal your hilariously twisted destiny. No two prophecies are ever the same!</p>
-            <button onclick="showScreen('setup-screen')">Start New Game</button>
+            <input type="text" id="player-name-input" placeholder="Enter Your Name">
+            <button onclick="createLobby()">Create Lobby</button>
+            <input type="text" id="lobby-id-input" placeholder="Enter Lobby ID">
+            <button onclick="joinLobby()">Join Lobby</button>
         </div>
 
-        <div id="setup-screen" class="screen">
-            <h2>Game Setup</h2>
-            <div id="player-inputs">
-                <label>Player Names (3-8 players)</label>
-                <div class="player-input-group">
-                    <input type="text" placeholder="Player 1 Name" class="player-name">
-                </div>
-                <div class="player-input-group">
-                    <input type="text" placeholder="Player 2 Name" class="player-name">
-                </div>
-                <div class="player-input-group">
-                    <input type="text" placeholder="Player 3 Name" class="player-name">
-                </div>
+        <div id="lobby-screen" class="screen">
+            <h2>Lobby</h2>
+            <p>Lobby ID: <strong id="lobby-id-display"></strong></p>
+            <h3>Players</h3>
+            <ul id="lobby-players" class="lobby-players-list"></ul>
+            <div id="setup-options">
+                <label for="theme-select">Select a Theme</label>
+                <select id="theme-select">
+                    <option value="random">🌟 Random Mix</option>
+                    <option value="classic">📜 Classic Prophecies</option>
+                    <option value="cringe"> cringe Cringe Week</option>
+                    <option value="fantasy">🏰 Medieval Fantasy</option>
+                </select>
+
+                <label for="gamemode-select">Select a Game Mode</label>
+                <select id="gamemode-select">
+                    <option value="classic">Classic (Each player builds their own prophecy)</option>
+                    <option value="pass-and-build">Pass & Build (Each player adds one line to every prophecy)</option>
+                </select>
+                <button id="start-game-button" onclick="startGame()">Let the Stars Align ✨</button>
             </div>
-            <button onclick="addPlayerInput()">+ Add Player</button>
-
-            <br><br>
-
-            <label for="theme-select">Select a Theme</label>
-            <select id="theme-select">
-                <option value="random">🌟 Random Mix</option>
-                <option value="classic">📜 Classic Prophecies</option>
-                <option value="cringe"> cringe Cringe Week</option>
-                <option value="fantasy">🏰 Medieval Fantasy</option>
-            </select>
-
-            <label for="gamemode-select">Select a Game Mode</label>
-            <select id="gamemode-select">
-                <option value="classic">Classic (Each player builds their own prophecy)</option>
-                <option value="pass-and-build">Pass & Build (Each player adds one line to every prophecy)</option>
-            </select>
-
-            <button onclick="startGame()">Let the Stars Align ✨</button>
         </div>
 
         <div id="game-screen" class="screen">
             <h2 id="game-player-name">Player's Turn</h2>
             <p id="game-prompt">Your prompt will appear here.</p>
+            <div class="game-message" id="game-message-box"></div>
             <textarea id="game-answer" placeholder="Write your prophecy line here..."></textarea>
-            <button id="submit-button" onclick="submitAnswer()">Submit & Next Player</button>
+            <button id="submit-button" onclick="submitAnswer()">Submit</button>
         </div>
 
         <div id="reveal-screen" class="screen">
             <h2>The Prophecies Are Revealed!</h2>
-            <div id="prophecies-container">
-                </div>
+            <div id="prophecies-container"></div>
             <button onclick="restartGame()">Play Again</button>
         </div>
-
     </div>
 
+    <script src="/socket.io/socket.io.js"></script>
     <script>
+        const socket = io();
+
         // ===================================
         // ===== GAME STATE & DATA =========
         // ===================================
@@ -288,14 +304,9 @@
             ]
         };
 
-        let gameState = {
-            players: [],
-            theme: 'random',
-            gameMode: 'classic',
-            currentPlayerIndex: 0,
-            currentRound: 0,
-            prompts: [],
-            answers: [], // Will be structured based on game mode
+        let localPlayer = {
+            name: '',
+            isHost: false
         };
 
         // ===================================
@@ -309,164 +320,137 @@
             document.getElementById(screenId).classList.add('active');
         }
 
-        function shuffleArray(array) {
-            for (let i = array.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [array[i], array[j]] = [array[j], array[i]];
-            }
-            return array;
-        }
-        
-        // ===================================
-        // ===== SETUP FUNCTIONS ===========
-        // ===================================
-
-        function addPlayerInput() {
-            const container = document.getElementById('player-inputs');
-            const playerCount = container.children.length;
-            if (playerCount >= 8) return; // Max 8 players
-
-            const newPlayerInput = document.createElement('div');
-            newPlayerInput.className = 'player-input-group';
-            newPlayerInput.innerHTML = `<input type="text" placeholder="Player ${playerCount + 1} Name" class="player-name">`;
-            container.appendChild(newPlayerInput);
+        function showGameMessage(message, duration = 3000) {
+            const messageBox = document.getElementById('game-message-box');
+            messageBox.innerText = message;
+            messageBox.style.display = 'block';
+            setTimeout(() => {
+                messageBox.style.display = 'none';
+            }, duration);
         }
 
-        function startGame() {
-            // 1. Collect Player Names
-            const playerInputs = document.querySelectorAll('.player-name');
-            const players = Array.from(playerInputs)
-                .map(input => input.value.trim())
-                .filter(name => name !== '');
+        // ===================================
+        // ===== LOBBY FUNCTIONS ===========
+        // ===================================
 
-            if (players.length < 3) {
-                alert('You need at least 3 players to start the prophecy!');
+        function createLobby() {
+            const playerName = document.getElementById('player-name-input').value.trim();
+            if (!playerName) {
+                alert('Please enter your name.');
                 return;
             }
+            localPlayer.name = playerName;
+            localPlayer.isHost = true;
+            socket.emit('createLobby', { playerName });
+        }
 
-            gameState.players = players;
-            
-            // 2. Set Theme and Game Mode
-            gameState.theme = document.getElementById('theme-select').value;
-            gameState.gameMode = document.getElementById('gamemode-select').value;
-            
-            // 3. Prepare Prompts
-            let availablePrompts = [];
-            if (gameState.theme === 'random') {
-                availablePrompts = [...promptData.classic, ...promptData.cringe, ...promptData.fantasy];
-            } else {
-                availablePrompts = [...promptData[gameState.theme]];
+        function joinLobby() {
+            const playerName = document.getElementById('player-name-input').value.trim();
+            const lobbyId = document.getElementById('lobby-id-input').value.trim();
+            if (!playerName || !lobbyId) {
+                alert('Please enter your name and a lobby ID.');
+                return;
             }
-            gameState.prompts = shuffleArray(availablePrompts).slice(0, gameState.players.length);
-
-            // 4. Reset state and start game
-            gameState.currentPlayerIndex = 0;
-            gameState.currentRound = 0;
-            
-            // Initialize answers structure based on mode
-            if (gameState.gameMode === 'pass-and-build') {
-                // Create a 2D array: players x rounds
-                gameState.answers = Array(gameState.players.length).fill(null).map(() => Array(gameState.players.length).fill(''));
-            } else { // Classic mode
-                gameState.answers = Array(gameState.players.length).fill('');
-            }
-
-            // 5. Move to the first player's turn
-            showScreen('game-screen');
-            loadPlayerTurn();
+            localPlayer.name = playerName;
+            socket.emit('joinLobby', { playerName, lobbyId });
+        }
+        
+        function startGame() {
+            const theme = document.getElementById('theme-select').value;
+            const gameMode = document.getElementById('gamemode-select').value;
+            socket.emit('startGame', { theme, gameMode });
         }
 
         // ===================================
         // ===== GAME LOGIC FUNCTIONS ======
         // ===================================
-
-        function loadPlayerTurn() {
-            const answerInput = document.getElementById('game-answer');
-            answerInput.value = ''; // Clear previous answer
-            
-            let currentPlayerName = '';
-            let currentPrompt = '';
-
-            if (gameState.gameMode === 'classic') {
-                currentPlayerName = gameState.players[gameState.currentPlayerIndex];
-                currentPrompt = gameState.prompts[gameState.currentPlayerIndex];
-            } else if (gameState.gameMode === 'pass-and-build') {
-                // In Pass & Build, player index changes each turn, round changes after all players have gone once
-                const playerForThisTurnIndex = (gameState.currentPlayerIndex + gameState.currentRound) % gameState.players.length;
-                currentPlayerName = gameState.players[playerForThisTurnIndex];
-                currentPrompt = `For ${gameState.players[gameState.currentPlayerIndex]}'s prophecy, write a line for the prompt: "${gameState.prompts[gameState.currentRound]}"`;
-            }
-
-            document.getElementById('game-player-name').innerText = `${currentPlayerName}'s Turn`;
-            document.getElementById('game-prompt').innerText = currentPrompt;
-            
-            // Update button text for the last turn
-            const isLastTurn = (gameState.currentPlayerIndex === gameState.players.length - 1) &&
-                               (gameState.gameMode === 'classic' || gameState.currentRound === gameState.players.length - 1);
-
-            document.getElementById('submit-button').innerText = isLastTurn ? 'Finish & Reveal Prophecies!' : 'Submit & Next Player';
-        }
-
+        
         function submitAnswer() {
             const answer = document.getElementById('game-answer').value.trim();
             if (answer === '') {
-                alert('The stars demand an answer! Please write something.');
+                showGameMessage('The stars demand an answer! Please write something.');
                 return;
             }
+            socket.emit('submitAnswer', { answer });
+            document.getElementById('game-answer').value = '';
+            document.getElementById('submit-button').disabled = true;
+        }
 
-            // Save answer based on game mode
-            if (gameState.gameMode === 'classic') {
-                gameState.answers[gameState.currentPlayerIndex] = answer;
-                gameState.currentPlayerIndex++;
-            } else if (gameState.gameMode === 'pass-and-build') {
-                // The answer goes into the prophecy of the CURRENT ROUND, written by the CURRENT PLAYER
-                gameState.answers[gameState.currentRound][gameState.currentPlayerIndex] = answer;
-                gameState.currentPlayerIndex++;
-                
-                // If all players have submitted for this round, move to the next round
-                if (gameState.currentPlayerIndex >= gameState.players.length) {
-                    gameState.currentPlayerIndex = 0;
-                    gameState.currentRound++;
-                }
-            }
-
-            // Check if game is over
-            const isGameOver = (gameState.gameMode === 'classic' && gameState.currentPlayerIndex >= gameState.players.length) ||
-                               (gameState.gameMode === 'pass-and-build' && gameState.currentRound >= gameState.players.length);
-
-            if (isGameOver) {
-                revealProphecies();
-            } else {
-                // Simple "pass the device" screen
-                alert('Answer submitted! Pass the device to the next player.');
-                loadPlayerTurn();
-            }
+        function restartGame() {
+            socket.emit('restartGame');
         }
         
         // ===================================
-        // ===== REVEAL & RESTART ==========
+        // ===== SOCKET.IO LISTENERS =======
         // ===================================
 
-        function revealProphecies() {
+        socket.on('lobbyCreated', ({ lobbyId, players }) => {
+            showScreen('lobby-screen');
+            document.getElementById('lobby-id-display').innerText = lobbyId;
+            updatePlayerList(players);
+            document.getElementById('setup-options').style.display = 'block';
+        });
+
+        socket.on('joinedLobby', ({ lobbyId, players, isHost }) => {
+            showScreen('lobby-screen');
+            document.getElementById('lobby-id-display').innerText = lobbyId;
+            updatePlayerList(players);
+            localPlayer.isHost = isHost;
+            if (!isHost) {
+                document.getElementById('setup-options').style.display = 'none';
+            }
+        });
+
+        socket.on('playerJoined', ({ players }) => {
+            updatePlayerList(players);
+        });
+        
+        function updatePlayerList(players) {
+            const playerList = document.getElementById('lobby-players');
+            playerList.innerHTML = '';
+            players.forEach(player => {
+                const li = document.createElement('li');
+                li.textContent = player.name + (player.isHost ? ' (Host)' : '');
+                playerList.appendChild(li);
+            });
+            const startGameButton = document.getElementById('start-game-button');
+            if(localPlayer.isHost) {
+                startGameButton.disabled = players.length < 3;
+            }
+        }
+        
+        socket.on('gameStarted', (gameState) => {
+            showScreen('game-screen');
+        });
+
+        socket.on('nextTurn', ({ currentPlayerName, prompt, isMyTurn }) => {
+            document.getElementById('game-player-name').innerText = `${currentPlayerName}'s Turn`;
+            document.getElementById('game-prompt').innerText = prompt;
+            document.getElementById('submit-button').disabled = !isMyTurn;
+            if (isMyTurn) {
+                showGameMessage("It's your turn!", 2000);
+            } else {
+                 showGameMessage(`Waiting for ${currentPlayerName} to answer...`, 10000);
+            }
+        });
+
+        socket.on('revealProphecies', (gameState) => {
             const container = document.getElementById('prophecies-container');
-            container.innerHTML = ''; // Clear old prophecies
+            container.innerHTML = ''; 
 
             for (let i = 0; i < gameState.players.length; i++) {
                 const scroll = document.createElement('div');
                 scroll.className = 'prophecy-scroll';
-                // Add a staggered animation delay
                 scroll.style.animationDelay = `${i * 0.3}s`;
 
-                const title = `<h3>${gameState.players[i]}'s Prophecy</h3>`;
+                const title = `<h3>${gameState.players[i].name}'s Prophecy</h3>`;
                 let prophecyText = '';
 
                 if (gameState.gameMode === 'classic') {
                     prophecyText = `<p>${gameState.prompts[i]} <strong>${gameState.answers[i]}</strong></p>`;
                 } else if (gameState.gameMode === 'pass-and-build') {
-                    // Assemble the prophecy line by line
                     let fullProphecy = '';
                     for (let j = 0; j < gameState.players.length; j++) {
-                        // The i-th player's prophecy is built from the j-th prompt and the j-th answer they received
                         fullProphecy += `<p>${gameState.prompts[j]} <strong>${gameState.answers[i][j]}</strong></p>`;
                     }
                     prophecyText = fullProphecy;
@@ -477,22 +461,22 @@
             }
 
             showScreen('reveal-screen');
-        }
+        });
 
-        function restartGame() {
-            // Reset game state object to its initial values
-            gameState = {
-                players: [],
-                theme: 'random',
-                gameMode: 'classic',
-                currentPlayerIndex: 0,
-                currentRound: 0,
-                prompts: [],
-                answers: [],
-            };
-            // Go back to the landing screen
-            showScreen('landing-screen');
-        }
+        socket.on('lobbyNotFound', () => {
+            alert('Lobby not found!');
+        });
+
+        socket.on('gameError', (message) => {
+            alert(message);
+        });
+
+        socket.on('returnToLobby', () => {
+            showScreen('lobby-screen');
+            if (localPlayer.isHost) {
+                 document.getElementById('setup-options').style.display = 'block';
+            }
+        });
 
     </script>
 </body>
